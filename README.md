@@ -1,3 +1,4 @@
+[Edited from lusis' original with updated versions and less profanity.]
 # CentOS 5.5 Erlang Applications
 After spending more time than I wanted attempting to deal with building RPMS of various erlang applications on CentOS 5, I decided to skip packaging all together. The premise is that these applications will be managed from some CM tool like puppet or chef which will handle creating application users and writing configuration files. This just gets workable binaries on the system.
 
@@ -31,16 +32,19 @@ For this process, I spun up two VMs of CentOS 5.5 - i386 and x86_64. These are m
 	cd /usr/src/build
 	wget http://download.fedora.redhat.com/pub/epel/5/i386/epel-release-5-4.noarch.rpm
 	rpm -ivh epel-release-5.4.noarch.rpm
-	yum install js-devel libicu-devel libtool gnutls-devel libidn-devel libssh2-devel nss-devel openssl-devel gcc gcc-c++ automake autoconf make mercurial openldap-devel python-simplejson libxslt xmlto -y
+	yum install js-devel libicu-devel libtool gnutls-devel libidn-devel libssh2-devel nss-devel openssl-devel gcc gcc-c++ automake autoconf make mercurial openldap-devel python-simplejson libxslt xmlto unixODBC-devel wxGTK-devel git -y
 
 # Grab packages
 These are the tarballs from each vendor for the applications I need.
 
-	wget http://www.erlang.org/download/otp_src_R13B04.tar.gz
-	wget http://downloads.basho.com/riak/riak-0.13/riak-0.13.0.tar.gz
-	wget http://curl.haxx.se/download/curl-7.21.3.tar.gz
-	wget http://mirror.its.uidaho.edu/pub/apache//couchdb/1.0.1/apache-couchdb-1.0.1.tar.gz
-	wget http://www.rabbitmq.com/releases/rabbitmq-server/v2.2.0/rabbitmq-server-2.2.0.tar.gz
+	wget http://www.erlang.org/download/otp_src_R14B01.tar.gz
+        git clone git://github.com/basho/riak.git
+	wget http://downloads.basho.com/riak/riak-0.14/riak-0.14.0-1.tar.gz
+	wget http://curl.haxx.se/download/curl-7.21.4.tar.gz
+	wget http://apache.cs.utah.edu//couchdb/1.0.2/apache-couchdb-1.0.2.tar.gz
+	wget http://www.rabbitmq.com/releases/rabbitmq-server/v2.3.1/rabbitmq-server-2.3.1.tar.gz
+
+The downloaded version of Riak was 0.14rc4
 
 # Build it all
 
@@ -49,9 +53,10 @@ Build us some erlang. These options are taken from the couchone repo on github w
 
 	tar -zxvf otp_src_R13B04.tar.gz
 	cd otp_src_R13B04
-	CFLAGS="--no-strict-aliasing" ./configure --prefix=/opt/erlang --enable-shared-zlib --without-javac --without-termcap --enable-smp-support --enable-hybrid-heap --enable-threads --disable-hipe --enable-kernel-poll --enable-dynamic-ssl-libs
+	export CFLAGS="--no-strict-aliasing"  ./configure --prefix=/opt/erlang --enable-shared-zlib --enable-smp-support --enable-hybrid-heap --enable-threads --enable-kernel-poll --enable-dynamic-ssl-libs
 	make && make install
 	export PATH=/opt/erlang/bin/:$PATH
+        echo export PATH=/opt/erlang/bin/:$PATH >>/etc/bashrc
 
 ## Build riak
 Now that we have a workable erlang install, we can build the applications.
@@ -66,15 +71,17 @@ Now that we have a workable erlang install, we can build the applications.
 	cp -R riak /opt/
 
 ## Build Curl
-Stupid CouchDB people. Guess you don't care about RHEL customers with the fucking stupid curl requirement? These command line options were taken from a nifty spec file for CouchDB. We're building a static libcurl to compile directly into Couch.
+These command line options were taken from a nifty spec file for CouchDB. We're building a static libcurl to compile directly into Couch.
 
 	cd /usr/src/build
-	tar -zxvf apache-couchdb-1.0.1.tar.gz
-	tar -zxvf curl-7.21.3.tar.gz
-	cd curl-7.21.3
-	mkdir /usr/src/build/apache-couchdb-1.0.1/result
+	tar -zxvf apache-couchdb-1.0.2.tar.gz
+	tar -zxvf curl-7.21.4.tar.gz
+	cd curl-7.21.4
+	mkdir ../apache-couchdb-1.0.2/result
 	./configure --disable-dependency-tracking --disable-shared --enable-static --prefix=/usr/src/build/apache-couchdb-1.0.1/result --libdir=/usr/src/build/apache-couchdb-1.0.1/result/lib
-	make && make test && make install
+	make
+        make test
+        make install
 
 
 ## Build CouchDB
@@ -91,11 +98,14 @@ Now we can build CouchDB. Options and exports are from the same spec file I ment
 As I said, You don't HAVE to build RabbitMQ this way. It supports an RPM install with the EPEL packages of Erlang. I'm just going for consistency. We're also just installing a shitload of plugins off the bat for testing. You probably don't need them all and should manage them with your CM tool since plugins are simply a .ez file installed in the plugins directory.
 
 	cd /usr/src/build
-	tar -zxvf rabbitmq-server-2.2.0.tar.gz
-	cd rabbitmq-server-2.2.0
+	tar -zxvf rabbitmq-server-2.3.1.tar.gz
+	cd rabbitmq-server-2.3.1
 	make && make install TARGET_DIR=/opt/rabbitmq SBIN_DIR=/opt/rabbitmq/bin MAN_DIR=/opt/rabbitmq/man
-	cd /opt/rabbitmq/plugins
-	for i in rabbit_stomp amqp_client rabbitmq-management-agent mochiweb webmachine rabbitmq-mochiweb rabbitmq-management rabbitmq-shovel; do wget http://www.rabbitmq.com/releases/plugins/v2.2.0/$i-2.2.0.ez; done
+        cd /usr/src/build
+        mkdir rabbitmq-plugins
+	cd rabbitmq-plugins
+	for i in rabbit_stomp amqp_client rabbitmq-management-agent mochiweb webmachine rabbitmq-mochiweb rabbitmq-management rabbitmq-shovel; do wget http://www.rabbitmq.com/releases/plugins/v2.3.1/$i-2.3.1.ez; done
+        
 
 # Manual testing
 Where it was provided, I ran unit tests while building the packages. I could not get erlang itself to run its tests.
@@ -133,10 +143,10 @@ Additionally, you can use some language like Ruby or Python to talk to each of t
 Now we "package" everything up.
 
 	cd /opt
-	tar -zcvf erlang-R13B04-<arch>-bin.tar.gz erlang
-	tar -zcvf riak-0.13-<arch>-bin.tar.gz riak
-	tar -zcvf couchdb-1.0.1-<arch>-bin.tar.gz couchdb
-	tar -zcvf rabbitmq-2.2.0-<arch>-bin.tar.gz rabbitmq
+	tar -zcvf erlang-R14B01-CentOS5-x86_64-bin.tar.gz erlang
+	tar -zcvf riak-0.14-CentOS5-x86_64-bin.tar.gz riak
+	tar -zcvf apache-couchdb-1.0.2-CentOS5-x86_64-bin.tar.gz couchdb
+	tar -zcvf rabbitmq-server-2.3.1-CentOS5-x86_64-bin.tar.gz rabbitmq
 	sha1sum *.tar.gz > checksums
 
 With the exception of riak, you need to untar the erlang and application tarballs on a destination host of the same arch into /opt/. You'll also need to install some libraries on the boxes that the packages are linked against from building:
