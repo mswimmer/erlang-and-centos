@@ -56,7 +56,6 @@ Build us some erlang. These options are taken from the couchone repo on github w
 	export CFLAGS="--no-strict-aliasing"  ./configure --prefix=/opt/erlang --enable-shared-zlib --enable-smp-support --enable-hybrid-heap --enable-threads --enable-kernel-poll --enable-dynamic-ssl-libs
 	make && make install
 	export PATH=/opt/erlang/bin/:$PATH
-        echo export PATH=/opt/erlang/bin/:$PATH >>/etc/bashrc
 
 ## Build riak
 Now that we have a workable erlang install, we can build the applications.
@@ -106,6 +105,10 @@ As I said, You don't HAVE to build RabbitMQ this way. It supports an RPM install
 	cd rabbitmq-plugins
 	for i in rabbit_stomp amqp_client rabbitmq-management-agent mochiweb webmachine rabbitmq-mochiweb rabbitmq-management rabbitmq-shovel; do wget http://www.rabbitmq.com/releases/plugins/v2.3.1/$i-2.3.1.ez; done
         
+# /etc/bashrc
+I ended up putting this at the end of the /etc/bashrc file:
+
+        export PATH=/opt/erlang/bin/:/opt/couchdb/bin:/opt/riak/bin:/opt/rabbitmq/bin:${PATH}
 
 # Manual testing
 Where it was provided, I ran unit tests while building the packages. I could not get erlang itself to run its tests.
